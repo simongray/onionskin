@@ -2,19 +2,19 @@
   "Boxes, the interval relation on each axis, and the fine relation of two
   boxes.
 
-  A box is a map of :left, :top, :right and :bottom in CSS pixels, with y
-  growing downwards, as getBoundingClientRect gives them. Two values within
-  the tolerance of each other count as equal, so that sub-pixel noise
-  doesn't change a relation.")
+  A box is a map of :left, :top, :right and :bottom in CSS pixels, like the
+  ones that getBoundingClientRect returns. The y axis grows downwards. Two
+  values within the tolerance of each other count as equal, so sub-pixel
+  noise doesn't change a relation.")
 
 (def default-tolerance
-  "The tolerance in CSS pixels when a check names none. Quixote and Jetpack
-  Compose use the same."
+  "The tolerance in CSS pixels for checks that don't set their own. Quixote
+  and Jetpack Compose use the same value."
   0.5)
 
 (defn compare-values
-  "-1, 0 or 1 as `a` is less than, within `tolerance` of, or greater than
-  `b`."
+  "The comparison of `a` with `b` that counts them as equal within
+  `tolerance`: -1, 0 or 1."
   [tolerance a b]
   (cond
     (< a (- b tolerance)) -1
@@ -26,12 +26,12 @@
   #{:before :meets :overlaps :starts :during :finishes :equals
     :after :met-by :overlapped-by :started-by :contains :finished-by})
 
-;; With a tolerance the 13 relations stay exhaustive and disjoint as long as
-;; both intervals are longer than twice the tolerance. For shorter ones the
-;; order of the tests decides.
+;; With a tolerance, the 13 relations stay exhaustive and disjoint as long as
+;; both intervals are longer than twice the tolerance. For shorter intervals,
+;; the first test that passes picks the relation.
 (defn interval-relation
-  "The Allen relation of the interval from `a1` to `a2` to the interval from
-  `b1` to `b2`, comparing their ends with `tolerance`."
+  "How the interval from `a1` to `a2` relates to the one from `b1` to `b2`:
+  one of Allen's 13 relations, with ends compared within `tolerance`."
   [tolerance [a1 a2] [b1 b2]]
   (let [cmp (partial compare-values tolerance)]
     (cond
@@ -71,13 +71,13 @@
   (/ (+ top bottom) 2))
 
 (defn relation
-  "The fine relation of box `a` to box `b`, comparing values with
+  "The fine relation of box `a` to box `b`, with values compared within
   `tolerance`.
 
-  It's a map of the interval relation on each axis, under :x and :y, and of
-  the comparison of their centres and sizes, under :center-x, :center-y,
-  :width and :height, each -1, 0 or 1 as `a`'s is less, about the same or
-  greater."
+  It's a map with the interval relation on each axis under :x and :y. It
+  also compares their centres and sizes under :center-x, :center-y, :width
+  and :height. Each of those is -1, 0 or 1 when `a`'s value is less, about
+  the same or greater."
   ([a b]
    (relation default-tolerance a b))
   ([tolerance a b]

@@ -1,52 +1,51 @@
 onionskin
 =========
 
-Test the layout and style of a web page at the level of detail each test
-needs. A test says how elements relate, e.g. that the logo is left of the
-search field and top-aligned with it, and onionskin checks that against the
-page as a headless Chrome renders it. Where a detail matters, the same test
-can say how far apart they are, or what colour a link has.
+Test the layout and style of a web page at the level of detail that each
+test needs. Most tests only say how elements relate to each other, e.g.
+that the logo is left of the search field. Each test is checked against
+the page using a headless Chrome instance. When a detail matters, a test
+can also say how far apart two elements are or what colour a link has.
 
-You can also compare two renderings of a page element by element, to see
-what a change to the CSS did, or that it did nothing.
+You can compare two renderings of a page element by element too. This
+shows what a change to the CSS did, or that it changed nothing.
 
 - **Relations, not coordinates.** A test that says "left of" keeps passing
-  when a font or a margin moves things by a few pixels. Each named
-  relation is defined by the interval relation of the two boxes on each
-  axis (Allen's 13), so a coarse check and a fine one can't disagree. Edges
-  within half a pixel of each other count as equal, unless you say
-  otherwise.
-- **Values in your own terms.** Expected styles are CSS in any syntax,
-  e.g. `var(--color-link)` or `0.2ch`, which the browser resolves for each
-  element before they're compared.
+  when a font or a margin moves things a few pixels. Every named relation
+  is built from one of Allen's 13 interval relations on each axis, so a
+  coarse check and a fine one can't disagree. Edges less than half a pixel
+  apart count as equal unless you set another tolerance.
+- **Values in your own terms.** You write expected styles in any CSS
+  syntax, e.g. `var(--color-link)` or `0.2ch`. The browser resolves them
+  for each element before the comparison.
 - **Differences you can read.** A diff groups the changes that share a
   cause, e.g. one line for a font size that changed on many elements.
-- **Plain data.** Specs, captures, failures and differences are maps and
-  vectors, and checking and comparing work in Clojure and ClojureScript.
-  Capturing needs the JVM and Chrome, but no WebDriver or Playwright.
+- **Plain data.** Specs, captures, failures and differences are all maps
+  and vectors. Checking and comparing work in both Clojure and
+  ClojureScript. Capturing needs the JVM and Chrome but no WebDriver or
+  Playwright.
 
-The design rests on [earlier tools and research](doc/prior-art.md).
+The design draws on [earlier tools and research](doc/prior-art.md).
 
 
 Getting started
 ---------------
 
 It requires Clojure 1.11+, Java 11+ and Chrome. There's no release yet, so
-depend on the latest commit on `main` in your `deps.edn`:
+add the latest commit on `main` to your `deps.edn`:
 
 ```clojure
 io.github.simongray/onionskin {:git/sha "..."}
 ```
 
-Set the `CHROME` environment variable to use another browser based on
-Chromium.
+To use another browser based on Chromium, set the `CHROME` environment
+variable.
 
 
 Checking a page
 ---------------
 
-A spec maps a CSS selector to what the elements it matches should look
-like:
+A spec maps each CSS selector to what its elements should look like:
 
 ```clojure
 (require '[dk.simongray.onionskin :as onionskin])
@@ -64,26 +63,30 @@ like:
 ;; => []
 ```
 
-Every element that a selector matches must hold, and a target must match
-exactly one element. The relations are:
+The expectations must hold for every element that a selector matches. A
+target must match exactly one element. These are the relations:
 
-- **Directions:** `:left-of`, `:right-of`, `:above` and `:below`, which
-  allow the boxes to touch.
-- **Containment:** `:inside`, `:contains`, `:overlaps`, `:touches` and
-  `:apart`.
+- **Directions:** `:left-of`, `:right-of`, `:above` and `:below`. Boxes
+  that touch still count.
+- **Containment:** `:inside`, `:centered-in`, `:contains`, `:overlaps`,
+  `:touches` and `:apart`.
 - **Alignment:** `:left-aligned`, `:right-aligned`, `:top-aligned`,
-  `:bottom-aligned`, `:center-aligned` (the horizontal centres),
-  `:middle-aligned` (the vertical centres) and `:centered-in`.
+  `:bottom-aligned`, `:center-aligned` and `:middle-aligned`. The last two
+  compare the horizontal and the vertical centres.
 - **Size:** `:same-width-as`, `:same-height-as`, `:same-size-as`,
   `:wider-than`, `:narrower-than`, `:taller-than` and `:shorter-than`.
 
-Give a map with the `:target` to add options: `:by` is the distance that
-the relation measures, as a number or a `[low high]` range in CSS pixels,
-e.g. the gap for a direction or the offset for an alignment, and
-`:tolerance` replaces the half pixel. `:width` and `:height` take a number
-or a range too.
+For options, give the relation a map with the `:target` in it:
 
-When a spec doesn't hold, `explain` says where and by how much:
+- `:by`: the distance that the relation measures, e.g. the gap for a
+  direction or the offset for an alignment. It takes a number of CSS
+  pixels or a `[low high]` range.
+- `:tolerance`: the number of pixels to use in place of half a pixel.
+
+An element's `:width` and `:height` also take a number or a range.
+
+When a spec doesn't hold, `explain` returns text that says where and by how
+much:
 
 ```clojure
 (onionskin/explain
@@ -106,9 +109,9 @@ In a test:
 Comparing two versions
 ----------------------
 
-Capture every element with `:all`, before and after a change, and compare
-the two. The `:css` option adds CSS to the page, so you can try a change
-without editing the style sheets:
+Capture every element with `:all` before and after a change, then compare
+the two captures. With the `:css` option you can try a change without
+editing the style sheets:
 
 ```clojure
 (with-open [browser (onionskin/browser)]
@@ -123,10 +126,10 @@ without editing the style sheets:
 ;;     (left 116 -> 120)"
 ```
 
-Elements are paired by their place in the document, so a diff suits a
-change to the CSS that leaves the markup alone. It compares styles and
-boxes by default; add `:relations` to the `:levels` to also compare which
-named relations hold between the elements of a spec.
+A diff pairs elements by their place in the document, so it works best for
+changes to the CSS that leave the markup alone. By default it compares
+styles and boxes. To also compare which named relations hold between the
+elements of a spec, add `:relations` to the `:levels`.
 
 
 License

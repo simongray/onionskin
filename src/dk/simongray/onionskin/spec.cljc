@@ -1,5 +1,5 @@
 (ns dk.simongray.onionskin.spec
-  "Specs: what a page should look like, as plain data.
+  "Specs, which say in plain data what a page should look like.
 
   A spec maps a CSS selector to the expectations of the elements it
   matches:
@@ -11,13 +11,15 @@
        \"a.rdf-uri\"   {:style {:color \"var(--color-link)\"}}
        \"main\"        {:width [nil 1100]}}
 
-  A relation names its target by selector, or by a map with the :target and
-  options: :by, the range of the distance it measures, and :tolerance. A
-  vector of targets asks for the relation to each. :width and :height take
-  a number or a [low high] range in CSS pixels. :style takes CSS values in
-  any syntax, which the browser resolves in the context of each element
-  before they're compared, so that a token, a named colour or a length in
-  ch can stand in for the value the browser computes."
+  A relation names its target by selector. For options, it takes a map of
+  the :target, the :by range of the distance it measures and a :tolerance.
+  With a vector of targets, the relation must hold for each of them.
+
+  The size of an element under :width or :height is a number or a [low
+  high] range in CSS pixels. The values under :style are CSS in any syntax.
+  The browser resolves them for each element before the comparison, so a
+  token, a named colour or a length in ch can stand in for the computed
+  value."
   (:require [dk.simongray.onionskin.relation :as relation]))
 
 (defn- relation-checks
@@ -46,9 +48,10 @@
       check)))
 
 (defn requirements
-  "What a capture needs for the checks of `spec`: a map from each selector
-  to the style properties to read, under :styles, and the pairs of a
-  property and a CSS value to resolve, under :resolve."
+  "What a capture needs for the checks of `spec`, by selector.
+
+  For each selector, :styles holds the style properties to read and
+  :resolve holds the pairs of a property and a CSS value to resolve."
   [spec]
   (reduce (fn [m {:keys [subject target style expected]}]
             (cond-> (update m subject #(merge {:styles #{} :resolve #{}} %))

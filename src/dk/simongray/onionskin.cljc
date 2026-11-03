@@ -35,7 +35,7 @@
 
 (defn check
   "The failures of `spec` in the capture `c`, which are none when the page
-  looks as the spec says. See check/check for the `opts`."
+  matches the spec. See check/check for the `opts`."
   ([c spec]
    (check/check c spec))
   ([c spec opts]

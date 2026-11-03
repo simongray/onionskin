@@ -2,13 +2,13 @@
 // evaluates this function in the page with the options of a capture:
 //
 //   select  [{selector, styles, resolve}]: the elements that each selector
-//           matches, with the style properties in styles and the pairs of a
-//           property and a CSS value in resolve, which a hidden probe inside
-//           the element resolves to the value the browser computes
-//   all     {root, styles, pseudo} or null: every element under root (the
-//           document by default) outside the head, with every style
-//           property but the custom ones, or those in styles, and the
-//           styles of the pseudo elements that have content
+//           matches. For each element, the capture reads the properties in
+//           styles. A hidden probe inside the element resolves each pair of
+//           a property and a CSS value in resolve.
+//   all     {root, styles, pseudo} or null: every element under root, the
+//           document by default, except those in the head. The capture
+//           reads every property but the custom ones, or only those in
+//           styles. It also reads the pseudo elements that have content.
 //   css     CSS to add to the page before anything else, e.g. to try a
 //           change without editing the style sheets
 //   settle  true to turn off animations and transitions and wait for the
@@ -25,6 +25,8 @@ async function capture(options) {
     (document.head || document.documentElement).append(style);
   }
 
+  // Reading the page before it settles is the most common cause of flaky UI
+  // tests (Romano et al., ICSE 2021).
   if (settle) {
     const style = document.createElement('style');
     style.textContent = '*, *::before, *::after { animation: none !important; ' +
@@ -90,6 +92,8 @@ async function capture(options) {
   if (all) {
     const root = all.root ? document.querySelector(all.root) : document.documentElement;
     const pseudos = all.pseudo || ['::before', '::after'];
+    // A computed style lists longhands only. Mazinanian and Tsantalis also
+    // compared longhands to check their CSS migrations (ASE 2016).
     styleNames = all.styles ||
       Array.from(getComputedStyle(document.documentElement))
         .filter(name => !name.startsWith('--'));

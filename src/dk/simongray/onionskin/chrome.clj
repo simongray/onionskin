@@ -1,7 +1,7 @@
 (ns dk.simongray.onionskin.chrome
   "A headless Chrome, driven over the DevTools protocol.
 
-  It needs nothing but an installed Chrome, as the JDK's own WebSocket
+  It needs nothing but an installed Chrome, since the JDK's own WebSocket
   client carries the protocol. The CHROME environment variable names
   another browser of Chromium."
   (:require [clojure.data.json :as json]
@@ -15,8 +15,8 @@
            [java.util.concurrent LinkedBlockingQueue TimeUnit]))
 
 (defn default-executable
-  "The Chrome that CHROME names, or else where Chrome is installed on macOS,
-  Windows or Linux."
+  "The path of the Chrome to run: the one in CHROME, or else where Chrome is
+  usually installed on macOS, Windows or Linux."
   []
   (or (System/getenv "CHROME")
       (let [os (str/lower-case (System/getProperty "os.name"))]
@@ -46,8 +46,9 @@
         nil))))
 
 (defn- receiver
-  "A function of a message from the browser that delivers a response to the
-  promise in `pending` with its id, and queues an event in `events`."
+  "A function that handles a message from the browser. It delivers each
+  response to the promise with its id in `pending` and queues each event in
+  `events`."
   [pending events]
   (fn [text]
     (let [message (json/read-str text :key-fn keyword)]
@@ -58,11 +59,12 @@
         (.offer ^LinkedBlockingQueue events message)))))
 
 (defn send!
-  "The result of the DevTools protocol command `method` with `params`, sent
-  to the page that `session` is attached to, or to the browser itself."
+  "Send the DevTools protocol command `method` with `params` to `browser`,
+  or to the page of its `session`, and return the result."
   ([browser method params]
    (send! browser nil method params))
-  ([{:keys [^WebSocket socket pending counter timeout]} session method params]
+  ([{:keys [^WebSocket socket pending counter timeout] :as browser}
+    session method params]
    (let [id (swap! counter inc)
          p  (promise)]
      (swap! pending assoc id p)
@@ -83,9 +85,9 @@
          :else (:result response))))))
 
 (defn- await-event
-  "The event `method` of `session`, skipping any other event, or an
-  exception after the browser's timeout."
-  [{:keys [^LinkedBlockingQueue events timeout]} session method]
+  "The next event `method` of `session` in `browser`, skipping any other
+  events. It throws after the browser's timeout."
+  [{:keys [^LinkedBlockingQueue events timeout] :as browser} session method]
   (let [deadline (+ (System/currentTimeMillis) timeout)]
     (loop []
       (let [left  (- deadline (System/currentTimeMillis))
@@ -118,9 +120,11 @@
     (delete-tree! profile)))
 
 (defn- devtools-url
-  "The WebSocket URL of the DevTools protocol that `process` prints when
-  it's ready, waiting at most `timeout` ms. The rest of what it prints is
-  read and dropped, so that the process never blocks on a full pipe."
+  "The DevTools WebSocket URL that `process` prints once it's ready, waiting
+  at most `timeout` ms.
+
+  A thread reads and drops the rest of the output, so the process never
+  blocks on a full pipe."
   [^Process process timeout]
   (let [url (promise)]
     (future
@@ -134,8 +138,8 @@
             (throw (ex-info "Chrome didn't start" {:timeout timeout}))))))
 
 (defn launch
-  "A headless Chrome of its own, with a fresh profile, which with-open
-  closes.
+  "A headless Chrome with a fresh profile and the `opts` below, which
+  with-open closes.
 
   The options are:
 
@@ -145,7 +149,7 @@
                    (default 30000)"
   ([]
    (launch {}))
-  ([{:keys [executable args timeout] :or {timeout 30000}}]
+  ([{:keys [executable args timeout] :or {timeout 30000} :as opts}]
    (let [profile (.toFile (Files/createTempDirectory "onionskin-"
                                                      (make-array FileAttribute 0)))
          command (concat [(or executable (default-executable))
@@ -156,8 +160,8 @@
                           "--no-default-browser-check"
                           "--hide-scrollbars"
                           "--mute-audio"]
-                         ;; The sandbox of Chrome needs privileges that the
-                         ;; runners of CI services don't give.
+                         ;; Chrome's sandbox needs privileges that CI
+                         ;; runners don't have.
                          (when (System/getenv "CI") ["--no-sandbox"])
                          args
                          ["about:blank"])
@@ -182,28 +186,28 @@
 
 (defn close-page
   "Close `page`."
-  [{:keys [browser target]}]
+  [{:keys [browser target] :as page}]
   (send! browser "Target.closeTarget" {:targetId target}))
 
 (defn resize!
-  "Give `page` a viewport of `width` and `height` CSS pixels and a device
-  pixel ratio of `scale`."
-  [{:keys [browser session]} {:keys [width height scale]}]
+  "Give `page` a viewport of the `size` in CSS pixels: its :width, :height
+  and :scale, the device pixel ratio."
+  [{:keys [browser session] :as page} {:keys [width height scale] :as size}]
   (send! browser session "Emulation.setDeviceMetricsOverride"
          {:width width :height height :deviceScaleFactor scale :mobile false}))
 
 (defn navigate!
-  "Load `url` in `page`, and wait for its load event."
-  [{:keys [browser session]} url]
+  "Load `url` in `page` and wait for its load event."
+  [{:keys [browser session] :as page} url]
   (let [{:keys [errorText]} (send! browser session "Page.navigate" {:url url})]
     (when (seq errorText)
       (throw (ex-info (str "Can't load " url ": " errorText) {:url url})))
     (await-event browser session "Page.loadEventFired")))
 
 (defn evaluate
-  "The value of the JavaScript `expression` in `page`, once it resolves if
-  it's a promise. The value comes back as JSON, with keywords as keys."
-  [{:keys [browser session]} expression]
+  "The value of the JavaScript `expression` in `page`, awaited if it's a
+  promise. Its JSON comes back with keywords for keys."
+  [{:keys [browser session] :as page} expression]
   (let [{:keys [result exceptionDetails]}
         (send! browser session "Runtime.evaluate"
                {:expression expression :awaitPromise true :returnByValue true})]

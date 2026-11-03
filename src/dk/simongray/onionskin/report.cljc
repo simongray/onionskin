@@ -20,8 +20,8 @@
         :else (str (number-text low) " to " (number-text high) " px")))))
 
 (def phrases
-  "How a sentence says that one element should stand in each named relation
-  to another."
+  "The words that a failure uses for each named relation, e.g. \"be left
+  of\"."
   {:left-of        "be left of"
    :right-of       "be right of"
    :above          "be above"
@@ -47,9 +47,9 @@
    :shorter-than   "be shorter than"})
 
 (defn- subject-text
-  "The selector `s` of a failure, with the place of the element among those
-  it matched when there are several."
-  [s {:keys [index count]}]
+  "The selector `s` of `failure`, followed by e.g. \"(2 of 5)\" when it
+  matched several elements."
+  [s {:keys [index count] :as failure}]
   (if (and count (> count 1))
     (str s " (" (inc index) " of " count ")")
     s))
@@ -83,16 +83,16 @@
                   ", but has " (:value failure) "."))))
 
 (defn failures
-  "The `failures` of a check as text, one sentence for each, followed by the
-  path of the element when there is one."
+  "The `failures` of a check as text: a sentence for each, followed by the
+  element's path when it has one."
   [failures]
   (str/join "\n" (for [f failures]
                    (cond-> (failure-sentence f)
                      (:path f) (str "\n  at " (:path f))))))
 
 (defn- example-text
-  "The count of `changes` and the path of the first, e.g. \"on 3 elements,
-  e.g. html:1>body:2\"."
+  "The number of `changes` and the path of the first one, such as \"on 3
+  elements, e.g. html:1>body:2\"."
   [changes]
   (str "on " (count changes) (if (= 1 (count changes)) " element" " elements")
        ", e.g. " (:path (first changes))))
@@ -106,9 +106,10 @@
                    (str (name edge) " " (number-text a) " -> " (number-text b)))))
 
 (defn differences
-  "The `differences` of two captures as text, with the changes of a style
-  property from one value to another grouped together, so that one cause
-  reads as one line."
+  "The `differences` of two captures as text, one line per cause.
+
+  Changes of a style property from the same old value to the same new value
+  share a line."
   [differences]
   (let [{:keys [added removed style box relation]} (group-by :change differences)]
     (str/join

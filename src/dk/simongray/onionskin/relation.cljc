@@ -1,10 +1,10 @@
 (ns dk.simongray.onionskin.relation
   "Named relations of one box to another, and the distances they measure.
 
-  Each named relation is a predicate on the fine relation that
-  geometry/relation gives, and reads nothing else. A coarse relation then
-  holds exactly when the fine relation is one it allows, so that relations
-  at different levels of detail can't disagree."
+  Each named relation is a predicate that reads only the fine relation from
+  geometry/relation. A coarse relation therefore holds exactly when the fine
+  relation is one that it allows, so relations at different levels of
+  detail can't disagree."
   (:require [dk.simongray.onionskin.geometry :as geometry]))
 
 (def ends-before
@@ -48,6 +48,9 @@
   "The interval relations in which the intervals end together."
   #{:finishes :finished-by :equals})
 
+;; Freksa, Temporal reasoning based on semi-intervals (Artificial
+;; Intelligence, 1992): coarse relations like these each come down to one or
+;; two comparisons of edges.
 (def vocabulary
   "The named relations, each a predicate on a fine relation.
 
@@ -83,13 +86,15 @@
    :taller-than    (fn [{:keys [height]}] (pos? height))
    :shorter-than   (fn [{:keys [height]}] (neg? height))})
 
+;; As in IFix (Mahajan et al., ICST 2018), a failure says how many pixels a
+;; relation is off by.
 (def measures
-  "For the named relations that have one, the name and the function of the
-  distance they measure from box `a` to box `b`.
+  "The distance that a named relation measures, if it has one: a pair of the
+  distance's name and a function of two boxes.
 
   A gap is negative when the boxes overlap. An offset or a difference is
-  positive when `a`'s edge, centre or size is further right, further down or
-  greater."
+  positive when the first box's edge, centre or size is further right,
+  further down or greater."
   {:left-of        [:gap (fn [a b] (- (:left b) (:right a)))]
    :right-of       [:gap (fn [a b] (- (:left a) (:right b)))]
    :above          [:gap (fn [a b] (- (:top b) (:bottom a)))]

@@ -11,9 +11,8 @@
   (delay (slurp (io/resource "dk/simongray/onionskin/capture.js"))))
 
 (defn script-options
-  "The options of capture.js for the selectors and values that `spec` needs,
-  for every element when `all` is true or a map of :root, :styles and
-  :pseudo, with the extra `css`, and settling first when `settle` is true."
+  "The options for capture.js that read what `spec` needs, with the `all`,
+  `css` and `settle` options of capture."
   [spec all css settle]
   {:select (for [[selector {:keys [styles resolve]}] (spec/requirements spec)]
              {:selector selector
@@ -24,7 +23,8 @@
    :settle settle})
 
 (defn- match
-  "A matched element of the capture, from what capture.js gave as `m`."
+  "The matched element `m` from capture.js, with maps for its style and its
+  resolved values."
   [m]
   {:path     (:path m)
    :box      (:box m)
@@ -34,8 +34,8 @@
                    (:resolved m))})
 
 (defn- node
-  "An element of a full capture, from what capture.js gave as `n`, whose
-  style values follow the order of `names`."
+  "The element `n` of a full capture from capture.js, with its style values
+  zipped into maps by the property `names`."
   [names n]
   (cond-> {:path     (:path n)
            :tag      (:tag n)
@@ -46,9 +46,8 @@
                                           [pseudo (zipmap names values)])))))
 
 (defn normalize
-  "The capture that capture.js returned as `raw`, as Clojure data: :elements
-  by selector, with style properties and resolved values as maps, and the
-  :nodes of a full capture."
+  "The `raw` result of capture.js, turned into the capture that check and
+  diff take."
   [raw]
   (cond-> {:url      (:url raw)
            :viewport (:viewport raw)
@@ -59,13 +58,13 @@
     (:nodes raw) (assoc :nodes (mapv (partial node (:styleNames raw)) (:nodes raw)))))
 
 (defn capture
-  "A capture of the page at `url`, loaded in a new page of `browser`.
+  "A capture of the page at `url`, loaded in a new page of `browser` with
+  the `opts` below.
 
   The options are:
 
-      :spec    the spec the capture is for, whose selectors and values it
-               reads
-      :all     true to capture every element too, for a diff, or a map of
+      :spec    the spec whose elements and values to read
+      :all     true to also read every element for a diff, or a map of
                :root (a selector), :styles (the properties to read) and
                :pseudo (the pseudo elements to read)
       :width   the viewport width in CSS pixels (default 1280)
@@ -75,7 +74,8 @@
       :settle  false to capture without turning off animations and
                waiting for fonts and frames (default true)"
   [browser url {:keys [spec all width height scale css settle]
-                :or   {width 1280 height 800 scale 1 settle true}}]
+                :or   {width 1280 height 800 scale 1 settle true}
+                :as   opts}]
   (let [page    (chrome/open browser)
         options (script-options spec all css settle)]
     (try

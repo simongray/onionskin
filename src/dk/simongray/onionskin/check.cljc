@@ -1,17 +1,19 @@
 (ns dk.simongray.onionskin.check
   "Checking a capture of a page against a spec.
 
-  A capture maps each selector of the spec, under :elements, to the elements
-  it matched, each with its :path in the document, its :box, the :style
-  properties the spec reads, and the CSS values of the spec as the browser
-  :resolved them for that element."
+  Under :elements, a capture maps each selector of the spec to the elements
+  it matched. Each element has its :path in the document and its :box. It
+  also has the :style properties that the spec reads. Under :resolved, it
+  has what the browser computed from the spec's CSS values for that
+  element."
   (:require [dk.simongray.onionskin.geometry :as geometry]
             [dk.simongray.onionskin.relation :as relation]
             [dk.simongray.onionskin.spec :as spec]))
 
 (defn- unmatched
-  "The failure of `check` when `selector` matched `n` elements, or nil when
-  that's fine: a subject must match at least one and a target exactly one."
+  "The failure of `check` when `selector` matched the wrong number of
+  elements in `capture`, or else nil. A subject must match at least one
+  element and a target exactly one."
   [check selector capture]
   (let [{:keys [error matches]} (get-in capture [:elements selector])
         n (count matches)]
@@ -22,14 +24,14 @@
       {:problem :ambiguous-target :selector selector :count n :check check})))
 
 (defn- located
-  "`failure` with the index and path of the `i`th `match` of the subject, out
-  of `n`."
+  "The `failure` with the index `i` and the path of `match`, the subject's
+  element in that place out of `n`."
   [failure i n match]
   (assoc failure :index i :count n :path (:path match)))
 
 (defn- relation-failures
-  "The failures of the relation `check` in `capture`, comparing with
-  `tolerance` unless the check names its own."
+  "The failures of the relation `check` in `capture`, with values compared
+  within `tolerance` unless the check sets its own."
   [capture tolerance {:keys [subject relation target by] :as check}]
   (let [tolerance (:tolerance check tolerance)
         matches   (get-in capture [:elements subject :matches])
@@ -53,8 +55,8 @@
       matches)))
 
 (defn- size-failures
-  "The failures of the size `check` in `capture`, comparing with
-  `tolerance` unless the check names its own."
+  "The failures of the size `check` in `capture`, with values compared
+  within `tolerance` unless the check sets its own."
   [capture tolerance {:keys [subject size expected] :as check}]
   (let [tolerance (:tolerance check tolerance)
         matches   (get-in capture [:elements subject :matches])
@@ -81,18 +83,20 @@
       matches)))
 
 (defn check
-  "The failures of `spec` in `capture`, as a vector of maps, which is empty
-  when the page looks as the spec says.
+  "The failures of `spec` in `capture` with the `opts` below: a vector of
+  maps that's empty when the page matches the spec.
 
   Each failure has a :problem and the :check that failed. A failure of an
-  element also has its :index among the :count elements that the selector
-  matched, and its :path. The options are:
+  element also has its :path and its :index among the :count elements that
+  the selector matched. The options are:
 
-      :tolerance  CSS pixels within which edges, centres and sizes count as
-                  equal, unless a check names its own (default 0.5)"
+      :tolerance  the CSS pixels within which edges, centres and sizes count
+                  as equal, unless a check sets its own (default 0.5)"
   ([capture spec]
    (check capture spec {}))
-  ([capture spec {:keys [tolerance] :or {tolerance geometry/default-tolerance}}]
+  ([capture spec {:keys [tolerance]
+                  :or   {tolerance geometry/default-tolerance}
+                  :as   opts}]
    (vec
      (mapcat
        (fn [{:keys [subject target relation size] :as c}]

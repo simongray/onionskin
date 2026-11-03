@@ -2,10 +2,10 @@
   "The differences between two captures of a page, e.g. before and after a
   change to its CSS.
 
-  A full capture lists every element of the page under :nodes, each with its
-  :path in the document, its :box, its computed :style and the styles of its
-  :pseudo elements. Elements are paired by path, so the comparison suits a
-  change that leaves the markup alone."
+  A full capture lists every element of the page under :nodes. Each node has
+  its :path in the document, its :box, its computed :style and the styles of
+  its :pseudo elements. The diff pairs elements by path, so it suits a change
+  that leaves the markup alone."
   (:require [dk.simongray.onionskin.geometry :as geometry]
             [dk.simongray.onionskin.relation :as relation]))
 
@@ -15,8 +15,8 @@
   (into {} (map (juxt :path identity)) (:nodes capture)))
 
 (defn- style-changes
-  "The changes of the properties of the styles `a` and `b` of the element at
-  `path`, or of its `pseudo` element."
+  "The properties that differ between the styles `a` and `b` of the element
+  at `path`, or of its `pseudo` element when one is given."
   [path pseudo a b]
   (for [property (sort (into (set (keys a)) (keys b)))
         :let [before (get a property)
@@ -26,8 +26,10 @@
       pseudo (assoc :pseudo pseudo))))
 
 (defn- node-changes
-  "The changes between `a` and `b`, two captures of the element at `path`,
-  at the `levels`, comparing boxes with `tolerance`."
+  "The changes between `a` and `b`, the element at `path` in two captures.
+
+  It compares the `levels` asked for, with box edges compared within
+  `tolerance`."
   [levels tolerance path a b]
   (concat
     (when (:styles levels)
@@ -44,9 +46,13 @@
                      [:left :top :right :bottom]))
       [{:change :box :path path :before (:box a) :after (:box b)}])))
 
+;; Comparing which relations hold, rather than coordinates, follows X-PERT
+;; (Roy Choudhary et al., ICSE 2013) and ReDeCheck (Walsh et al., STVR 2020).
 (defn- relation-changes
-  "The changes of the named relations between the first elements that each
-  pair of the selectors matched in `before` and `after`, with `tolerance`."
+  "The named relations that changed between `before` and `after` for each
+  pair of selectors, with edges compared within `tolerance`.
+
+  Each selector stands for the first element that it matched."
   [tolerance before after]
   (let [first-box (fn [capture selector]
                     (:box (first (get-in capture [:elements selector :matches]))))
@@ -67,25 +73,35 @@
        :lost    (apply sorted-set (remove is was))
        :gained  (apply sorted-set (remove was is))})))
 
+;; Neither clojure.data/diff nor a library such as editscript fits here.
+;; They compare numbers exactly where boxes need a tolerance, and the report
+;; needs the old and new value of a property side by side. Nor can they pair
+;; up elements after a change to the markup, which is the hard part.
 (defn diff
   "The differences between `before` and `after`, two captures of the same
-  page, as a vector of maps in document order, which is empty when nothing
-  changed.
+  page, with the `opts` below: a vector of maps in document order that's
+  empty when nothing changed.
 
-  Each difference has a :change: :added or :removed for an element that only
-  one capture has, :style for a property of an element or of its :pseudo
-  element, :box for an element that moved or changed size, and :relation
-  for a pair of selected elements whose named relations changed. The options
-  are:
+  Each difference has one of these values under :change:
+
+      :added, :removed  an element that only one of the captures has
+      :style            a property of an element or of its :pseudo element
+      :box              an element that moved or changed size
+      :relation         a pair of selected elements whose named relations
+                        changed
+
+  The options are:
 
       :levels     what to compare, a set of :styles, :boxes and :relations
                   (default #{:styles :boxes})
-      :tolerance  CSS pixels within which edges count as equal (default 0.5)"
+      :tolerance  the CSS pixels within which edges count as equal
+                  (default 0.5)"
   ([before after]
    (diff before after {}))
   ([before after {:keys [levels tolerance]
                   :or   {levels    #{:styles :boxes}
-                         tolerance geometry/default-tolerance}}]
+                         tolerance geometry/default-tolerance}
+                  :as   opts}]
    (let [a     (by-path before)
          b     (by-path after)
          paths (fn [capture] (map :path (:nodes capture)))]
