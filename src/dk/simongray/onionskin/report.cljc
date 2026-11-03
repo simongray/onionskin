@@ -49,9 +49,9 @@
 (defn- subject-text
   "The selector `s` of `failure`, followed by e.g. \"(2 of 5)\" when it
   matched several elements."
-  [s {:keys [index count] :as failure}]
-  (if (and count (> count 1))
-    (str s " (" (inc index) " of " count ")")
+  [s {:keys [index] n :count :as failure}]
+  (if (and n (> n 1))
+    (str s " (" (inc index) " of " n ")")
     s))
 
 (defn- failure-sentence

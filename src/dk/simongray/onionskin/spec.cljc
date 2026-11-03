@@ -53,10 +53,11 @@
   For each selector, :styles holds the style properties to read and
   :resolve holds the pairs of a property and a CSS value to resolve."
   [spec]
-  (reduce (fn [m {:keys [subject target style expected]}]
-            (cond-> (update m subject #(merge {:styles #{} :resolve #{}} %))
-              target (update target #(merge {:styles #{} :resolve #{}} %))
-              style (-> (update-in [subject :styles] conj style)
-                        (update-in [subject :resolve] conj [style expected]))))
-          {}
-          (checks spec)))
+  (let [blank {:styles #{} :resolve #{}}]
+    (reduce (fn [m {:keys [subject target style expected]}]
+              (cond-> (update m subject #(or % blank))
+                target (update target #(or % blank))
+                style (-> (update-in [subject :styles] conj style)
+                          (update-in [subject :resolve] conj [style expected]))))
+            {}
+            (checks spec))))

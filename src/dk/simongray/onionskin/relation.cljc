@@ -95,22 +95,25 @@
   A gap is negative when the boxes overlap. An offset or a difference is
   positive when the first box's edge, centre or size is further right,
   further down or greater."
-  {:left-of        [:gap (fn [a b] (- (:left b) (:right a)))]
-   :right-of       [:gap (fn [a b] (- (:left a) (:right b)))]
-   :above          [:gap (fn [a b] (- (:top b) (:bottom a)))]
-   :below          [:gap (fn [a b] (- (:top a) (:bottom b)))]
-   :left-aligned   [:offset (fn [a b] (- (:left a) (:left b)))]
-   :right-aligned  [:offset (fn [a b] (- (:right a) (:right b)))]
-   :top-aligned    [:offset (fn [a b] (- (:top a) (:top b)))]
-   :bottom-aligned [:offset (fn [a b] (- (:bottom a) (:bottom b)))]
-   :center-aligned [:offset (fn [a b] (- (geometry/center-x a) (geometry/center-x b)))]
-   :middle-aligned [:offset (fn [a b] (- (geometry/center-y a) (geometry/center-y b)))]
-   :same-width-as  [:difference (fn [a b] (- (geometry/width a) (geometry/width b)))]
-   :same-height-as [:difference (fn [a b] (- (geometry/height a) (geometry/height b)))]
-   :wider-than     [:difference (fn [a b] (- (geometry/width a) (geometry/width b)))]
-   :narrower-than  [:difference (fn [a b] (- (geometry/width a) (geometry/width b)))]
-   :taller-than    [:difference (fn [a b] (- (geometry/height a) (geometry/height b)))]
-   :shorter-than   [:difference (fn [a b] (- (geometry/height a) (geometry/height b)))]})
+  (let [minus  (fn [f] (fn [a b] (- (f a) (f b))))
+        width  [:difference (minus geometry/width)]
+        height [:difference (minus geometry/height)]]
+    {:left-of        [:gap (fn [a b] (- (:left b) (:right a)))]
+     :right-of       [:gap (fn [a b] (- (:left a) (:right b)))]
+     :above          [:gap (fn [a b] (- (:top b) (:bottom a)))]
+     :below          [:gap (fn [a b] (- (:top a) (:bottom b)))]
+     :left-aligned   [:offset (minus :left)]
+     :right-aligned  [:offset (minus :right)]
+     :top-aligned    [:offset (minus :top)]
+     :bottom-aligned [:offset (minus :bottom)]
+     :center-aligned [:offset (minus geometry/center-x)]
+     :middle-aligned [:offset (minus geometry/center-y)]
+     :same-width-as  width
+     :same-height-as height
+     :wider-than     width
+     :narrower-than  width
+     :taller-than    height
+     :shorter-than   height}))
 
 (defn holding
   "The names of the relations in the vocabulary that hold for `fine`, a fine

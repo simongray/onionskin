@@ -23,64 +23,49 @@
       (and (= selector (:target check)) (> n 1))
       {:problem :ambiguous-target :selector selector :count n :check check})))
 
-(defn- located
-  "The `failure` with the index `i` and the path of `match`, the subject's
-  element in that place out of `n`."
-  [failure i n match]
-  (assoc failure :index i :count n :path (:path match)))
+(defn- relation-failure
+  "The failure of the relation `check` for `match`, an element of its
+  subject in `capture`, or nil. Values are compared within `tolerance`."
+  [capture tolerance {:keys [relation target by] :as check} match]
+  (let [a           (:box match)
+        b           (:box (first (get-in capture [:elements target :matches])))
+        fine        (geometry/relation tolerance a b)
+        [measure f] (relation/measures relation)
+        value       (when f (f a b))]
+    (when-not (and ((relation/vocabulary relation) fine)
+                   (or (nil? by) (geometry/in-range? tolerance by value)))
+      (cond-> {:problem :relation :check check :fine fine :boxes [a b]}
+        measure (assoc :measure measure :value value)))))
 
-(defn- relation-failures
-  "The failures of the relation `check` in `capture`, with values compared
-  within `tolerance` unless the check sets its own."
-  [capture tolerance {:keys [subject relation target by] :as check}]
-  (let [tolerance (:tolerance check tolerance)
-        matches   (get-in capture [:elements subject :matches])
-        other     (first (get-in capture [:elements target :matches]))
-        holds?    (relation/vocabulary relation)
-        [measure f] (relation/measures relation)]
-    (keep-indexed
-      (fn [i match]
-        (let [a (:box match)
-              b (:box other)
-              fine (geometry/relation tolerance a b)
-              value (when f (f a b))]
-          (when-not (and (holds? fine)
-                         (or (nil? by) (geometry/in-range? tolerance by value)))
-            (cond-> (located {:problem :relation
-                              :check   check
-                              :fine    fine
-                              :boxes   [a b]}
-                             i (count matches) match)
-              measure (assoc :measure measure :value value)))))
-      matches)))
+(defn- size-failure
+  "The failure of the size `check` for `match`, an element of its subject,
+  or nil. Values are compared within `tolerance`."
+  [tolerance {:keys [size expected] :as check} match]
+  (let [value ((if (= size :width) geometry/width geometry/height) (:box match))]
+    (when-not (geometry/in-range? tolerance expected value)
+      {:problem :size :check check :value value})))
 
-(defn- size-failures
-  "The failures of the size `check` in `capture`, with values compared
-  within `tolerance` unless the check sets its own."
-  [capture tolerance {:keys [subject size expected] :as check}]
-  (let [tolerance (:tolerance check tolerance)
-        matches   (get-in capture [:elements subject :matches])
-        measure   (if (= size :width) geometry/width geometry/height)]
-    (keep-indexed
-      (fn [i match]
-        (let [value (measure (:box match))]
-          (when-not (geometry/in-range? tolerance expected value)
-            (located {:problem :size :check check :value value}
-                     i (count matches) match))))
-      matches)))
+(defn- style-failure
+  "The failure of the style `check` for `match`, an element of its subject,
+  or nil."
+  [{:keys [style expected] :as check} match]
+  (let [actual   (get-in match [:style style])
+        resolved (get-in match [:resolved [style expected]] expected)]
+    (when (not= actual resolved)
+      {:problem :style :check check :value actual :resolved resolved})))
 
-(defn- style-failures
-  "The failures of the style `check` in `capture`."
-  [capture {:keys [subject style expected] :as check}]
+(defn- element-failures
+  "The failures of the elements that the subject of `check` matched in
+  `capture`, with `failure` as the function of one element.
+
+  Each failure gets the element's :path and its :index among the :count
+  elements."
+  [capture {:keys [subject] :as check} failure]
   (let [matches (get-in capture [:elements subject :matches])]
-    (keep-indexed
-      (fn [i match]
-        (let [actual   (get-in match [:style style])
-              resolved (get-in match [:resolved [style expected]] expected)]
-          (when (not= actual resolved)
-            (located {:problem :style :check check :value actual :resolved resolved}
-                     i (count matches) match))))
-      matches)))
+    (keep-indexed (fn [i match]
+                    (some-> (failure match)
+                            (assoc :index i :count (count matches) :path (:path match))))
+                  matches)))
 
 (defn check
   "The failures of `spec` in `capture` with the `opts` below: a vector of
@@ -100,11 +85,12 @@
    (vec
      (mapcat
        (fn [{:keys [subject target relation size] :as c}]
-         (if-let [problems (seq (keep #(unmatched c % capture)
-                                      (cond-> [subject] target (conj target))))]
-           problems
-           (cond
-             relation (relation-failures capture tolerance c)
-             size (size-failures capture tolerance c)
-             :else (style-failures capture c))))
+         (let [tolerance (:tolerance c tolerance)]
+           (or (seq (keep #(unmatched c % capture)
+                          (cond-> [subject] target (conj target))))
+               (element-failures capture c
+                                 (cond
+                                   relation (partial relation-failure capture tolerance c)
+                                   size (partial size-failure tolerance c)
+                                   :else (partial style-failure c))))))
        (spec/checks spec)))))

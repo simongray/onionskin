@@ -19,19 +19,19 @@
 async function capture(options) {
   const { select = [], all = null, css = null, settle = true } = options || {};
 
-  if (css) {
+  const addStyle = text => {
     const style = document.createElement('style');
-    style.textContent = css;
+    style.textContent = text;
     (document.head || document.documentElement).append(style);
-  }
+  };
+
+  if (css) addStyle(css);
 
   // Reading the page before it settles is the most common cause of flaky UI
   // tests (Romano et al., ICSE 2021).
   if (settle) {
-    const style = document.createElement('style');
-    style.textContent = '*, *::before, *::after { animation: none !important; ' +
-      'transition: none !important; caret-color: transparent !important; }';
-    (document.head || document.documentElement).append(style);
+    addStyle('*, *::before, *::after { animation: none !important; ' +
+             'transition: none !important; caret-color: transparent !important; }');
     await document.fonts.ready;
     // requestAnimationFrame waits for a frame, unless the page is hidden.
     await Promise.race([
@@ -100,9 +100,8 @@ async function capture(options) {
     nodes = (root ? [root, ...root.querySelectorAll('*')] : [])
       .filter(el => !el.closest('head'))
       .map(el => {
-        const node = { path: path(el), tag: el.localName,
-                       rendered: el.getClientRects().length > 0,
-                       box: box(el), style: read(getComputedStyle(el), styleNames) };
+        const node = { path: path(el), box: box(el),
+                       style: read(getComputedStyle(el), styleNames) };
         const pseudo = [];
         for (const name of pseudos) {
           const style = getComputedStyle(el, name);

@@ -175,7 +175,7 @@
                                      (listener (receiver pending events))))]
      (->Browser process socket profile pending events (atom 0) timeout))))
 
-(defn open
+(defn open-page
   "A new page of `browser`, which close-page closes."
   [browser]
   (let [{:keys [targetId]} (send! browser "Target.createTarget" {:url "about:blank"})

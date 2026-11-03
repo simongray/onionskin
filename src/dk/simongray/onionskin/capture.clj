@@ -37,11 +37,9 @@
   "The element `n` of a full capture from capture.js, with its style values
   zipped into maps by the property `names`."
   [names n]
-  (cond-> {:path     (:path n)
-           :tag      (:tag n)
-           :rendered (:rendered n)
-           :box      (:box n)
-           :style    (zipmap names (:style n))}
+  (cond-> {:path  (:path n)
+           :box   (:box n)
+           :style (zipmap names (:style n))}
     (:pseudo n) (assoc :pseudo (into {} (for [[pseudo values] (:pseudo n)]
                                           [pseudo (zipmap names values)])))))
 
@@ -76,7 +74,7 @@
   [browser url {:keys [spec all width height scale css settle]
                 :or   {width 1280 height 800 scale 1 settle true}
                 :as   opts}]
-  (let [page    (chrome/open browser)
+  (let [page    (chrome/open-page browser)
         options (script-options spec all css settle)]
     (try
       (chrome/resize! page {:width width :height height :scale scale})
