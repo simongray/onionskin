@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>onionskin fixture</title>
+<style>
+  :root { --color-link: #0066BB; --gap: 8px; }
+  body { margin: 0; font: 16px/1.5 Georgia, serif; }
+  nav { display: flex; gap: var(--gap); padding: 8px; }
+  nav .logo { width: 100px; height: 40px; background: #333; }
+  nav .search { flex: 1; height: 40px; box-sizing: border-box; }
+  h1 { display: flex; align-items: center; margin: 16px 8px; }
+  h1 .prefix { letter-spacing: 1px; margin-right: 6px; }
+  ul.legend { list-style: none; margin: 16px; padding: 8px; width: 200px; }
+  ul.legend li { padding: 4px; }
+  a { color: var(--color-link); }
+  .note::before { content: "Note: "; }
+</style>
+</head>
+<body>
+  <nav><div class="logo"></div><input class="search"></nav>
+  <h1><span class="prefix">DN</span><span class="title">hund</span></h1>
+  <ul class="legend"><li>One</li><li>Two</li><li>Three</li></ul>
+  <p class="note">A <a href="#">link</a>.</p>
+</body>
+</html>

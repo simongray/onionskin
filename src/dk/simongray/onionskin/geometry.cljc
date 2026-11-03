@@ -39,16 +39,16 @@
       (zero? (cmp a2 b1)) :meets
       (pos? (cmp a1 b2)) :after
       (zero? (cmp a1 b2)) :met-by
-      :else (case [(cmp a1 b1) (cmp a2 b2)]
-              [0 0] :equals
-              [0 -1] :starts
-              [0 1] :started-by
-              [1 0] :finishes
-              [-1 0] :finished-by
-              [1 -1] :during
-              [-1 1] :contains
-              [-1 -1] :overlaps
-              [1 1] :overlapped-by))))
+      :else (get {[0 0]   :equals
+                  [0 -1]  :starts
+                  [0 1]   :started-by
+                  [1 0]   :finishes
+                  [-1 0]  :finished-by
+                  [1 -1]  :during
+                  [-1 1]  :contains
+                  [-1 -1] :overlaps
+                  [1 1]   :overlapped-by}
+                 [(cmp a1 b1) (cmp a2 b2)]))))
 
 (defn width
   "The width of `box`."
