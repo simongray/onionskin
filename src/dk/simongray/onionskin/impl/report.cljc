@@ -1,4 +1,4 @@
-(ns dk.simongray.onionskin.report
+(ns ^:no-doc dk.simongray.onionskin.impl.report
   "Failures and differences as text for people to read."
   (:require [clojure.string :as str]))
 
@@ -59,6 +59,8 @@
   [{:keys [problem check selector] :as failure}]
   (let [{:keys [subject target relation by size style expected]} check]
     (case problem
+      :not-captured (str selector " is not in the capture. Capture the page"
+                         " with this spec.")
       :invalid-selector (str selector " is not a valid selector: " (:error failure) ".")
       :no-match (str selector " matched no element.")
       :ambiguous-target (str selector " matched " (:count failure)
@@ -80,7 +82,10 @@
                   expected
                   (when (not= expected (:resolved failure))
                     (str " (" (:resolved failure) ")"))
-                  ", but has " (:value failure) "."))))
+                  ", but has " (:value failure) ".")
+      :invalid-style (str (subject-text subject failure) " should have " style
+                          " " expected ", but that isn't valid CSS for the"
+                          " element."))))
 
 (defn failures
   "The `failures` of a check as text: a sentence for each, followed by the

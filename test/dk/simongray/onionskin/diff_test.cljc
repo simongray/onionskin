@@ -1,7 +1,6 @@
 (ns dk.simongray.onionskin.diff-test
   (:require [clojure.test :refer [deftest is]]
-            [dk.simongray.onionskin.diff :as diff]
-            [dk.simongray.onionskin.report :as report]))
+            [dk.simongray.onionskin :as onionskin]))
 
 (defn- node
   [path left style & {:as more}]
@@ -27,10 +26,10 @@
               "b" {:matches [(node "html:1>b:2" 5 {})]}}})
 
 (deftest no-change-test
-  (is (= [] (diff/diff before before {:levels #{:styles :boxes :relations}}))))
+  (is (= [] (onionskin/diff before before {:levels #{:styles :boxes :relations}}))))
 
 (deftest changes-test
-  (let [changes (diff/diff before after {:levels #{:styles :boxes :relations}})]
+  (let [changes (onionskin/diff before after {:levels #{:styles :boxes :relations}})]
     (is (= [:removed :added :style :style :style :style :style :box :relation]
            (map :change changes)))
     (is (= {:change :relation :subject "a" :target "b"
@@ -43,8 +42,8 @@
                 "::before content: \"x\" -> \"y\" on 1 element, e.g. html:1>b:2\n"
                 "Moved or resized on 1 element, e.g. html:1>b:2 (left 20 -> 5, right 30 -> 15)\n"
                 "a to b: no longer apart, left-of; now overlaps")
-           (report/differences changes)))))
+           (onionskin/explain changes)))))
 
 (deftest levels-test
   (is (= #{:removed :added :box}
-         (set (map :change (diff/diff before after {:levels #{:boxes}}))))))
+         (set (map :change (onionskin/diff before after {:levels #{:boxes}}))))))

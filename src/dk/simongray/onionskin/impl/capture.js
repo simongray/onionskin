@@ -1,4 +1,4 @@
-// The capture of a page as plain data, which JSON can carry. The driver
+// The capture of a page as plain data, which JSON can carry. The browser
 // evaluates this function in the page with the options of a capture:
 //
 //   select  [{selector, styles, resolve}]: the elements that each selector
@@ -39,14 +39,18 @@ async function capture(options) {
       new Promise(done => setTimeout(done, 200))]);
   }
 
+  // The first path under a parent numbers all of its children, so the paths
+  // of a long list don't take quadratic time.
+  const paths = new Map();
   const path = el => {
-    const steps = [];
-    for (let e = el; e; e = e.parentElement) {
-      const parent = e.parentElement;
-      const i = parent ? Array.prototype.indexOf.call(parent.children, e) + 1 : 1;
-      steps.unshift(e.localName + ':' + i);
+    const parent = el.parentElement;
+    if (!parent) return el.localName + ':1';
+    if (!paths.has(el)) {
+      const prefix = path(parent) + '>';
+      Array.from(parent.children).forEach((child, i) =>
+        paths.set(child, prefix + child.localName + ':' + (i + 1)));
     }
-    return steps.join('>');
+    return paths.get(el);
   };
 
   const box = el => {
@@ -55,15 +59,37 @@ async function capture(options) {
              right: r.right + scrollX, bottom: r.bottom + scrollY };
   };
 
-  const read = (style, names) => names.map(name => style.getPropertyValue(name));
+  // Most computed values repeat from element to element, so a full capture
+  // lists each value once and refers to it by its index.
+  const values = new Map();
+  const read = (style, names) => names.map(name => {
+    const value = style.getPropertyValue(name);
+    if (!values.has(value)) values.set(value, values.size);
+    return values.get(value);
+  });
+
+  // The browser drops a value that the property doesn't take, and the probe
+  // would then have the inherited or the initial value, which a check could
+  // match by accident. A value with a var() only shows this once its
+  // variables are substituted, as in the computed value of a custom
+  // property.
+  const valid = (probe, property, value) => {
+    if (!value.includes('var(')) return CSS.supports(property, value);
+    probe.style.setProperty('--onionskin', value);
+    const substituted = getComputedStyle(probe).getPropertyValue('--onionskin');
+    return substituted !== '' && CSS.supports(property, substituted);
+  };
 
   const resolve = (el, property, value) => {
     const probe = document.createElement('span');
     probe.style.setProperty('position', 'absolute');
     probe.style.setProperty('visibility', 'hidden');
-    probe.style.setProperty(property, value);
     el.append(probe);
-    const resolved = getComputedStyle(probe).getPropertyValue(property);
+    let resolved = null;
+    if (valid(probe, property, value)) {
+      probe.style.setProperty(property, value);
+      resolved = getComputedStyle(probe).getPropertyValue(property);
+    }
     probe.remove();
     return resolved;
   };
@@ -125,5 +151,5 @@ async function capture(options) {
 
   return { url: location.href,
            viewport: { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
-           elements, styleNames, nodes };
+           elements, styleNames, styleValues: Array.from(values.keys()), nodes };
 }

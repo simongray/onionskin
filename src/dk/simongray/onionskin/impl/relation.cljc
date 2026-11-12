@@ -1,11 +1,12 @@
-(ns dk.simongray.onionskin.relation
+(ns ^:no-doc dk.simongray.onionskin.impl.relation
   "Named relations of one box to another, and the distances they measure.
 
-  Each named relation is a predicate that reads only the fine relation from
-  geometry/relation. A coarse relation therefore holds exactly when the fine
-  relation is one that it allows, so relations at different levels of
-  detail can't disagree."
-  (:require [dk.simongray.onionskin.geometry :as geometry]))
+  Each named relation reads only the fine relation from geometry/relation.
+  A coarse relation therefore holds exactly when the fine relation is one
+  that it allows, so relations at different levels of detail can't
+  disagree."
+  (:require [clojure.set :as set]
+            [dk.simongray.onionskin.impl.geometry :as geometry]))
 
 (def ends-before
   "The interval relations in which the first interval ends where the other
@@ -28,7 +29,7 @@
 
 (def overlapping
   "The interval relations in which the intervals share more than an end."
-  (reduce disj geometry/interval-relations (concat ends-before starts-after)))
+  (set/difference geometry/interval-relations ends-before starts-after))
 
 (def within
   "The interval relations in which the first interval lies within the
@@ -51,40 +52,50 @@
 ;; Freksa, Temporal reasoning based on semi-intervals (Artificial
 ;; Intelligence, 1992): coarse relations like these each come down to one or
 ;; two comparisons of edges.
+(defn- both
+  "A function that tests whether the interval relations on both axes of a
+  fine relation are in the set `s`."
+  [s]
+  (every-pred (comp s :x) (comp s :y)))
+
 (def vocabulary
-  "The named relations, each a predicate on a fine relation.
+  "The named relations, each a function of a fine relation that returns
+  something truthy when the relation holds.
 
   The directions allow touching: a box is left of another when its right
   edge is at the other's left edge or before it. A box overlaps another when
   their insides meet, which includes one lying inside the other."
-  {:left-of        (fn [{:keys [x]}] (contains? ends-before x))
-   :right-of       (fn [{:keys [x]}] (contains? starts-after x))
-   :above          (fn [{:keys [y]}] (contains? ends-before y))
-   :below          (fn [{:keys [y]}] (contains? starts-after y))
-   :inside         (fn [{:keys [x y]}] (and (contains? within x) (contains? within y)))
-   :contains       (fn [{:keys [x y]}] (and (contains? around x) (contains? around y)))
-   :overlaps       (fn [{:keys [x y]}]
-                     (and (contains? overlapping x) (contains? overlapping y)))
-   :touches        (fn [{:keys [x y]}]
-                     (or (and (contains? touching x) (not (contains? apart y)))
-                         (and (contains? touching y) (not (contains? apart x)))))
-   :apart          (fn [{:keys [x y]}] (or (contains? apart x) (contains? apart y)))
-   :left-aligned   (fn [{:keys [x]}] (contains? same-start x))
-   :right-aligned  (fn [{:keys [x]}] (contains? same-end x))
-   :top-aligned    (fn [{:keys [y]}] (contains? same-start y))
-   :bottom-aligned (fn [{:keys [y]}] (contains? same-end y))
-   :center-aligned (fn [{:keys [center-x]}] (zero? center-x))
-   :middle-aligned (fn [{:keys [center-y]}] (zero? center-y))
-   :centered-in    (fn [{:keys [x y center-x center-y]}]
-                     (and (contains? within x) (contains? within y)
-                          (zero? center-x) (zero? center-y)))
-   :same-width-as  (fn [{:keys [width]}] (zero? width))
-   :same-height-as (fn [{:keys [height]}] (zero? height))
-   :same-size-as   (fn [{:keys [width height]}] (and (zero? width) (zero? height)))
-   :wider-than     (fn [{:keys [width]}] (pos? width))
-   :narrower-than  (fn [{:keys [width]}] (neg? width))
-   :taller-than    (fn [{:keys [height]}] (pos? height))
-   :shorter-than   (fn [{:keys [height]}] (neg? height))})
+  {:left-of        (comp ends-before :x)
+   :right-of       (comp starts-after :x)
+   :above          (comp ends-before :y)
+   :below          (comp starts-after :y)
+   :inside         (both within)
+   :contains       (both around)
+   :overlaps       (both overlapping)
+   :touches        (some-fn (every-pred (comp touching :x) (comp not apart :y))
+                            (every-pred (comp touching :y) (comp not apart :x)))
+   :apart          (some-fn (comp apart :x) (comp apart :y))
+   :left-aligned   (comp same-start :x)
+   :right-aligned  (comp same-end :x)
+   :top-aligned    (comp same-start :y)
+   :bottom-aligned (comp same-end :y)
+   :center-aligned (comp zero? :center-x)
+   :middle-aligned (comp zero? :center-y)
+   :centered-in    (every-pred (both within)
+                               (comp zero? :center-x)
+                               (comp zero? :center-y))
+   :same-width-as  (comp zero? :width)
+   :same-height-as (comp zero? :height)
+   :same-size-as   (every-pred (comp zero? :width) (comp zero? :height))
+   :wider-than     (comp pos? :width)
+   :narrower-than  (comp neg? :width)
+   :taller-than    (comp pos? :height)
+   :shorter-than   (comp neg? :height)})
+
+(defn holds?
+  "True if the relation named `k` holds for `fine`, a fine relation."
+  [k fine]
+  (boolean ((vocabulary k) fine)))
 
 ;; As in IFix (Mahajan et al., ICST 2018), a failure says how many pixels a
 ;; relation is off by.
@@ -119,6 +130,4 @@
   "The names of the relations in the vocabulary that hold for `fine`, a fine
   relation."
   [fine]
-  (into (sorted-set)
-        (keep (fn [[k holds?]] (when (holds? fine) k)))
-        vocabulary))
+  (into (sorted-set) (filter #(holds? % fine)) (keys vocabulary)))

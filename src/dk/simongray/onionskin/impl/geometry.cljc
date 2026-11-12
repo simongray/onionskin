@@ -1,4 +1,4 @@
-(ns dk.simongray.onionskin.geometry
+(ns ^:no-doc dk.simongray.onionskin.impl.geometry
   "Boxes, the interval relation on each axis, and the fine relation of two
   boxes.
 
@@ -39,16 +39,12 @@
       (zero? (cmp a2 b1)) :meets
       (pos? (cmp a1 b2)) :after
       (zero? (cmp a1 b2)) :met-by
-      :else (get {[0 0]   :equals
-                  [0 -1]  :starts
-                  [0 1]   :started-by
-                  [1 0]   :finishes
-                  [-1 0]  :finished-by
-                  [1 -1]  :during
-                  [-1 1]  :contains
-                  [-1 -1] :overlaps
-                  [1 1]   :overlapped-by}
-                 [(cmp a1 b1) (cmp a2 b2)]))))
+      ;; The rows compare the starts and the columns compare the ends.
+      :else (let [end (cmp a2 b2)]
+              (case (cmp a1 b1)
+                -1 (case end -1 :overlaps  0 :finished-by  1 :contains)
+                0  (case end -1 :starts    0 :equals       1 :started-by)
+                1  (case end -1 :during    0 :finishes     1 :overlapped-by))))))
 
 (defn width
   "The width of `box`."
@@ -92,6 +88,12 @@
       :center-y (cmp (center-y a) (center-y b))
       :width    (cmp (width a) (width b))
       :height   (cmp (height a) (height b))})))
+
+(defn same-box?
+  "True if the boxes `a` and `b` have the same edges within `tolerance`."
+  [tolerance a b]
+  (every? #(zero? (compare-values tolerance (% a) (% b)))
+          [:left :top :right :bottom]))
 
 (defn in-range?
   "True if `value` is within `tolerance` of `expected`.

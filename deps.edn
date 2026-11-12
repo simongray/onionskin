@@ -1,8 +1,8 @@
 {:paths ["src"]
 
  ;; Clojure 1.11 is the floor, and the tests run on it unless an alias says
- ;; otherwise. data.json reads and writes the messages of the DevTools
- ;; protocol, which the JVM side uses to drive Chrome.
+ ;; otherwise. data.json reads and writes the messages that drive the
+ ;; browsers, and it reads the captures that they send back.
  :deps  {org.clojure/clojure   {:mvn/version "1.11.4"}
          org.clojure/data.json {:mvn/version "2.5.2"}}
 

@@ -4,8 +4,9 @@ onionskin
 Test the layout and style of a web page at the level of detail that each
 test needs. Most tests only say how elements relate to each other, e.g.
 that the logo is left of the search field. Each test is checked against
-the page using a headless Chrome instance. When a detail matters, a test
-can also say how far apart two elements are or what colour a link has.
+the page using a headless browser: Chrome, Chromium, Edge or Firefox. When
+a detail matters, a test can also say how far apart two elements are or
+what colour a link has.
 
 You can compare two renderings of a page element by element too. This
 shows what a change to the CSS did, or that it changed nothing.
@@ -17,12 +18,14 @@ shows what a change to the CSS did, or that it changed nothing.
   apart count as equal unless you set another tolerance.
 - **Values in your own terms.** You write expected styles in any CSS
   syntax, e.g. `var(--color-link)` or `0.2ch`. The browser resolves them
-  for each element before the comparison.
+  for each element before the comparison. A value that it doesn't accept
+  fails the test, so a misspelt property or variable can't pass by
+  accident.
 - **Differences you can read.** A diff groups the changes that share a
   cause, e.g. one line for a font size that changed on many elements.
 - **Plain data.** Specs, captures, failures and differences are all maps
   and vectors. Checking and comparing work in both Clojure and
-  ClojureScript. Capturing needs the JVM and Chrome but no WebDriver or
+  ClojureScript. Capturing needs the JVM and a browser but no WebDriver or
   Playwright.
 
 The design draws on [earlier tools and research](doc/prior-art.md).
@@ -31,15 +34,15 @@ The design draws on [earlier tools and research](doc/prior-art.md).
 Getting started
 ---------------
 
-It requires Clojure 1.11+, Java 11+ and Chrome. There's no release yet, so
-add the latest commit on `main` to your `deps.edn`:
+It requires Clojure 1.11+, Java 11+ and one of the browsers above. There's
+no release yet, so add the latest commit on `main` to your `deps.edn`:
 
 ```clojure
 io.github.simongray/onionskin {:git/sha "..."}
 ```
 
-To use another browser based on Chromium, set the `CHROME` environment
-variable.
+Everything you need is in the `dk.simongray.onionskin` namespace, and its
+docstrings list every option.
 
 
 Checking a page
@@ -109,15 +112,14 @@ In a test:
 Comparing two versions
 ----------------------
 
-Capture every element with `:all` before and after a change, then compare
-the two captures. With the `:css` option you can try a change without
-editing the style sheets:
+A capture without a spec has every element of the page. Make one before
+and after a change, then compare the two. With the `:css` option you can
+try a change without editing the style sheets:
 
 ```clojure
 (with-open [browser (onionskin/browser)]
-  (let [before (onionskin/capture browser url {:all true})
-        after  (onionskin/capture browser url {:all true
-                                               :css "nav { gap: 12px; }"})]
+  (let [before (onionskin/capture browser url)
+        after  (onionskin/capture browser url {:css "nav { gap: 12px; }"})]
     (onionskin/explain (onionskin/diff before after))))
 ;; => "column-gap: 8px -> 12px on 1 element, e.g. html:1>body:2>nav:1
 ;;     row-gap: 8px -> 12px on 1 element, e.g. html:1>body:2>nav:1
@@ -129,7 +131,32 @@ editing the style sheets:
 A diff pairs elements by their place in the document, so it works best for
 changes to the CSS that leave the markup alone. By default it compares
 styles and boxes. To also compare which named relations hold between the
-elements of a spec, add `:relations` to the `:levels`.
+elements of a spec, capture with both the `:spec` and `:all`, then add
+`:relations` to the `:levels` of the diff.
+
+
+Browsers
+--------
+
+Without arguments, `onionskin/browser` starts a headless Chrome. Name
+another kind to use that instead:
+
+```clojure
+(with-open [browser (onionskin/browser :firefox)]
+  (onionskin/check (onionskin/capture browser url {:spec spec}) spec))
+```
+
+The kinds are `:chrome`, `:chromium`, `:edge` and `:firefox`. Each one runs
+from where it's usually installed. If yours is somewhere else, pass the
+`:executable` option or set the environment variable of the kind's name in
+capitals, e.g. `FIREFOX`.
+
+Threads can share a browser, e.g. to capture a page at several widths
+with `pmap`.
+
+For a browser that isn't among the kinds, such as Safari, implement the
+`Browser` protocol in `dk.simongray.onionskin.browser`. It has one
+function, which loads a page and runs a script in it.
 
 
 License

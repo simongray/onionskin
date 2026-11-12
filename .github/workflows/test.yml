@@ -34,9 +34,12 @@ jobs:
             .cpcache
           key: clojure-${{ runner.os }}-${{ hashFiles('deps.edn') }}
 
-      # The tests that capture pages run the Chrome of the runner.
+      # The tests that capture pages run in each of these browsers, which
+      # the runner has installed.
       - name: JVM tests
         run: clojure -X:test
+        env:
+          BROWSERS: chrome edge firefox
 
       # The build runs the tests itself, but exits 0 when one fails, so
       # node runs the built file, and its exit code fails the step.

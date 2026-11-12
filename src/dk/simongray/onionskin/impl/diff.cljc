@@ -1,4 +1,4 @@
-(ns dk.simongray.onionskin.diff
+(ns ^:no-doc dk.simongray.onionskin.impl.diff
   "The differences between two captures of a page, e.g. before and after a
   change to its CSS.
 
@@ -6,8 +6,9 @@
   its :path in the document, its :box, its computed :style and the styles of
   its :pseudo elements. The diff pairs elements by path, so it suits a change
   that leaves the markup alone."
-  (:require [dk.simongray.onionskin.geometry :as geometry]
-            [dk.simongray.onionskin.relation :as relation]))
+  (:require [clojure.set :as set]
+            [dk.simongray.onionskin.impl.geometry :as geometry]
+            [dk.simongray.onionskin.impl.relation :as relation]))
 
 (defn- by-path
   "The nodes of `capture` by their path."
@@ -18,19 +19,26 @@
   "The properties that differ between the styles `a` and `b` of the element
   at `path`, or of its `pseudo` element when one is given."
   [path pseudo a b]
-  (for [property (sort (into (set (keys a)) (keys b)))
-        :let [before (get a property)
-              after (get b property)]
-        :when (not= before after)]
-    (cond-> {:change :style :path path :property property :before before :after after}
-      pseudo (assoc :pseudo pseudo))))
+  ;; Most styles are the same in both captures, and comparing the two maps
+  ;; first is much cheaper than going through their properties.
+  (when (not= a b)
+    (for [property (sort (into (set (keys a)) (keys b)))
+          :let [before (get a property)
+                after (get b property)]
+          :when (not= before after)]
+      (cond-> {:change   :style
+               :path     path
+               :property property
+               :before   before
+               :after    after}
+        pseudo (assoc :pseudo pseudo)))))
 
 (defn- node-changes
-  "The changes between `a` and `b`, the element at `path` in two captures.
+  "The changes from `a` to `b`, the same element in two captures.
 
   It compares the `levels` asked for, with box edges compared within
   `tolerance`."
-  [levels tolerance path a b]
+  [levels tolerance {:keys [path] :as a} b]
   (concat
     (when (:styles levels)
       (concat (style-changes path nil (:style a) (:style b))
@@ -40,10 +48,7 @@
                                        (get-in b [:pseudo pseudo])))
                       (sort (into (set (keys (:pseudo a))) (keys (:pseudo b)))))))
     (when (and (:boxes levels)
-               (some #(not (zero? (geometry/compare-values tolerance
-                                                           (get-in a [:box %])
-                                                           (get-in b [:box %]))))
-                     [:left :top :right :bottom]))
+               (not (geometry/same-box? tolerance (:box a) (:box b))))
       [{:change :box :path path :before (:box a) :after (:box b)}])))
 
 ;; Comparing which relations hold, rather than coordinates, follows X-PERT
@@ -70,50 +75,32 @@
       {:change  :relation
        :subject a
        :target  b
-       :lost    (apply sorted-set (remove is was))
-       :gained  (apply sorted-set (remove was is))})))
+       :lost    (set/difference was is)
+       :gained  (set/difference is was)})))
 
 ;; Neither clojure.data/diff nor a library such as editscript fits here.
 ;; They compare numbers exactly where boxes need a tolerance, and the report
 ;; needs the old and new value of a property side by side. Nor can they pair
 ;; up elements after a change to the markup, which is the hard part.
 (defn diff
-  "The differences between `before` and `after`, two captures of the same
-  page, with the `opts` below: a vector of maps in document order that's
-  empty when nothing changed.
-
-  Each difference has one of these values under :change:
-
-      :added, :removed  an element that only one of the captures has
-      :style            a property of an element or of its :pseudo element
-      :box              an element that moved or changed size
-      :relation         a pair of selected elements whose named relations
-                        changed
-
-  The options are:
-
-      :levels     what to compare, a set of :styles, :boxes and :relations
-                  (default #{:styles :boxes})
-      :tolerance  the CSS pixels within which edges count as equal
-                  (default 0.5)"
-  ([before after]
-   (diff before after {}))
-  ([before after {:keys [levels tolerance]
-                  :or   {levels    #{:styles :boxes}
-                         tolerance geometry/default-tolerance}
-                  :as   opts}]
-   (let [a     (by-path before)
-         b     (by-path after)
-         paths (fn [capture] (map :path (:nodes capture)))]
-     (vec
-       (concat
-         (for [path (paths before) :when (not (contains? b path))]
-           {:change :removed :path path})
-         (for [path (paths after) :when (not (contains? a path))]
-           {:change :added :path path})
-         (mapcat (fn [path]
-                   (when-let [node (get b path)]
-                     (node-changes levels tolerance path (get a path) node)))
-                 (paths before))
-         (when (:relations levels)
-           (relation-changes tolerance before after)))))))
+  "The differences between the captures `before` and `after`, with the
+  `opts` of diff in the root namespace."
+  [before after {:keys [levels tolerance]
+                 :or   {levels    #{:styles :boxes}
+                        tolerance geometry/default-tolerance}
+                 :as   opts}]
+  (let [a (by-path before)
+        b (by-path after)]
+    (vec
+      (concat
+        (for [{:keys [path]} (:nodes before) :when (not (contains? b path))]
+          {:change :removed :path path})
+        (for [{:keys [path]} (:nodes after) :when (not (contains? a path))]
+          {:change :added :path path})
+        (for [node (:nodes before)
+              :let [other (get b (:path node))]
+              :when other
+              change (node-changes levels tolerance node other)]
+          change)
+        (when (:relations levels)
+          (relation-changes tolerance before after))))))

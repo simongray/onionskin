@@ -1,6 +1,6 @@
 (ns dk.simongray.onionskin.geometry-test
   (:require [clojure.test :refer [deftest is are testing]]
-            [dk.simongray.onionskin.geometry :as geometry]))
+            [dk.simongray.onionskin.impl.geometry :as geometry]))
 
 (deftest interval-relation-test
   (testing "each of Allen's 13 relations of [10 20] to another interval"
@@ -32,6 +32,11 @@
            (geometry/relation a b)))
     (is (= {:x :after :y :equals :center-x 1 :center-y 0 :width -1 :height 0}
            (geometry/relation b a)))))
+
+(deftest same-box-test
+  (let [a {:left 0 :top 0 :right 100 :bottom 20}]
+    (is (geometry/same-box? 0.5 a (assoc a :right 100.4)))
+    (is (not (geometry/same-box? 0.5 a (assoc a :right 100.6))))))
 
 (deftest in-range-test
   (are [expected value result] (= result (geometry/in-range? 0.5 expected value))

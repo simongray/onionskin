@@ -1,7 +1,7 @@
 (ns dk.simongray.onionskin.relation-test
   (:require [clojure.test :refer [deftest is are testing]]
-            [dk.simongray.onionskin.geometry :as geometry]
-            [dk.simongray.onionskin.relation :as relation]))
+            [dk.simongray.onionskin.impl.geometry :as geometry]
+            [dk.simongray.onionskin.impl.relation :as relation]))
 
 (defn- box
   [left top right bottom]
@@ -9,7 +9,7 @@
 
 (defn- holds?
   [k a b]
-  ((relation/vocabulary k) (geometry/relation a b)))
+  (relation/holds? k (geometry/relation a b)))
 
 (deftest directions-test
   (let [a (box 0 0 100 20)]
