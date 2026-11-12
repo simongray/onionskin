@@ -182,7 +182,15 @@
   A :path is the element's path in `after`, or in `before` for a removed
   element. Where the two differ, the difference also has the :old-path and
   the sign that the element was :paired-by: :key, :subtree, :container,
-  :shape, :tag, :text or :box. The options are:
+  :shape, :tag, :text or :box.
+
+  A :style difference that another difference explains says what it
+  :follows: \"color\" for a colour that changed with the element's color,
+  :box for a value that restates the layout of an element whose box
+  changed, and :parent when the parent has the same difference. So
+  (remove :follows differences) leaves the differences that have no known
+  cause among the others, and explain counts the rest on their lines. The
+  options are:
 
       :levels     what to compare, a set of :styles, :boxes and :relations
                   (default #{:styles :boxes})

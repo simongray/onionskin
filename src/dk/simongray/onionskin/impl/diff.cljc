@@ -7,6 +7,7 @@
   its :pseudo elements. The match namespace pairs the elements of the two
   captures, also when the markup changed between them."
   (:require [clojure.set :as set]
+            [clojure.string :as str]
             [dk.simongray.onionskin.impl.geometry :as geometry]
             [dk.simongray.onionskin.impl.match :as match]
             [dk.simongray.onionskin.impl.relation :as relation]))
@@ -62,6 +63,63 @@
                    [{:change :moved :path (:path b)}])
                  (node-changes levels tolerance a b)))))
 
+;; The computed style of an element has used values for these properties,
+;; so they change with the layout around the element and not only with its
+;; own declarations (CSSOM, resolved values). The list is the one that
+;; Chromium flags in its table of properties.
+(def layout-properties
+  "The style properties whose values in a capture can restate the layout."
+  (let [physical ["top" "right" "bottom" "left"]
+        logical  ["block-start" "block-end" "inline-start" "inline-end"]]
+    (-> #{"width" "height" "inline-size" "block-size"
+          "grid-template-columns" "grid-template-rows"
+          "transform" "transform-origin" "perspective-origin" "translate"}
+        (into physical)
+        (into (map #(str "inset-" %)) logical)
+        (into (for [edge ["margin" "padding"]
+                    side (concat physical logical)]
+                (str edge "-" side))))))
+
+;; StyleProof folds the properties that follow color in the same way. No
+;; tool was found that reports one line per cause, so each fold here is a
+;; plain rule over the changes themselves.
+(defn- explained
+  "The `changes` of the elements that two captures share, where each style
+  change that another change explains says what it :follows:
+
+      \"color\"  the element's color, for a colour that changed with it
+      :box     the element's box, for a value that restates the layout of
+               the element or of one of its pseudo elements
+      :parent  the same change on the parent, or on the element itself for
+               one of its pseudo elements"
+  [changes]
+  (let [styles (into {}
+                     (comp (filter #(= :style (:change %)))
+                           (map (juxt (juxt :path :pseudo :property) identity)))
+                     changes)
+        boxes  (into #{} (comp (filter #(= :box (:change %))) (map :path)) changes)
+        same?  (fn [a b]
+                 (and b (= (:before a) (:before b)) (= (:after a) (:after b))))
+        parent (fn [path]
+                 (some->> (str/last-index-of path ">") (subs path 0)))
+        cause  (fn [{:keys [path pseudo property] :as change}]
+                 (cond
+                   (and (not= "color" property)
+                        (str/ends-with? property "color")
+                        (same? change (styles [path pseudo "color"])))
+                   "color"
+
+                   (and (layout-properties property) (boxes path))
+                   :box
+
+                   (same? change (styles [(if pseudo path (parent path)) nil property]))
+                   :parent))]
+    (mapv (fn [change]
+            (if-let [cause (when (= :style (:change change)) (cause change))]
+              (assoc change :follows cause)
+              change))
+          changes)))
+
 ;; Comparing which relations hold, rather than coordinates, follows X-PERT
 ;; (Roy Choudhary et al., ICSE 2013) and ReDeCheck (Walsh et al., STVR 2020).
 (defn- relation-changes
@@ -111,6 +169,6 @@
           {:change :removed :path path})
         (for [{:keys [path]} (:nodes after) :when (not (contains? found path))]
           {:change :added :path path})
-        (mapcat #(pair-changes levels tolerance %) pairs)
+        (explained (mapcat #(pair-changes levels tolerance %) pairs))
         (when (:relations levels)
           (relation-changes tolerance before after))))))

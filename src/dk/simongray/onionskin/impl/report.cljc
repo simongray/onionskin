@@ -95,12 +95,22 @@
                    (cond-> (failure-sentence f)
                      (:path f) (str "\n  at " (:path f))))))
 
+(defn- counted
+  "The number `n` with `singular` or `plural`, whichever fits it."
+  [n singular plural]
+  (str n " " (if (= 1 n) singular plural)))
+
 (defn- example-text
   "The number of `changes` and the path of the first one, such as \"on 3
-  elements, e.g. html:1>body:2\"."
-  [changes]
-  (str "on " (count changes) (if (= 1 (count changes)) " element" " elements")
-       ", e.g. " (:path (first changes))))
+  elements, e.g. html:1>body:2\". With `inside`, it also gives that number
+  of elements inside them."
+  ([changes]
+   (example-text changes nil))
+  ([changes inside]
+   (str "on " (counted (count changes) "element" "elements")
+        (when inside
+          (str " and " inside " inside " (if (= 1 (count changes)) "it" "them")))
+        ", e.g. " (:path (first changes)))))
 
 (defn- box-text
   "The edges that moved between the boxes `before` and `after`."
@@ -114,9 +124,13 @@
   "The `differences` of two captures as text, one line per cause.
 
   Changes of a style property from the same old value to the same new value
-  share a line."
+  share a line. A change that follows another one is counted on that one's
+  line."
   [differences]
-  (let [{:keys [added removed moved style box relation]} (group-by :change differences)]
+  (let [{:keys [added removed moved style box relation]} (group-by :change differences)
+        cause   (group-by :follows style)
+        inside  (frequencies (map (juxt :property :before :after) (cause :parent)))
+        colours (group-by (juxt :pseudo :before :after) (cause "color"))]
     (str/join
       "\n"
       (concat
@@ -127,12 +141,21 @@
                 " (was " (:old-path (first moved)) ")")])
         (for [[[property pseudo before after] changes]
               (sort-by (comp - count val)
-                       (group-by (juxt :property :pseudo :before :after) style))]
+                       (group-by (juxt :property :pseudo :before :after) (cause nil)))
+              :let [followers (when (= "color" property)
+                                (distinct (map :property (colours [pseudo before after]))))]]
           (str (when pseudo (str pseudo " ")) property ": " before " -> " after " "
-               (example-text changes)))
+               (example-text changes (when-not pseudo (inside [property before after])))
+               (when (seq followers)
+                 (str ", with "
+                      (counted (count followers) "property that follows" "properties that follow")
+                      " it"))))
         (when box
           [(str "Moved or resized " (example-text box) " ("
-                (box-text (:before (first box)) (:after (first box))) ")")])
+                (box-text (:before (first box)) (:after (first box))) ")"
+                (when-let [values (cause :box)]
+                  (str ", with "
+                       (counted (count values) "style value that follows" "style values that follow"))))])
         (for [{:keys [subject target lost gained]} relation]
           (str subject " to " target ":"
                (when (seq lost) (str " no longer " (str/join ", " (map name lost))))

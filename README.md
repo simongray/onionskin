@@ -123,10 +123,15 @@ try a change without editing the style sheets:
     (onionskin/explain (onionskin/diff before after))))
 ;; => "column-gap: 8px -> 12px on 1 element, e.g. html:1>body:2>nav:1
 ;;     row-gap: 8px -> 12px on 1 element, e.g. html:1>body:2>nav:1
-;;     ...
 ;;     Moved or resized on 1 element, e.g. html:1>body:2>nav:1>input:2
-;;     (left 116 -> 120)"
+;;     (left 116 -> 120), with 4 style values that follow"
 ```
+
+A change that follows from another one is counted on that one's line. This
+covers values that only restate an element's box, colours that follow
+`color`, and values that an element has from its parent. In the data, such
+a difference says what it `:follows`, so `(remove :follows differences)`
+leaves the ones with no known cause.
 
 A diff also works when the markup changed. It then pairs the elements of
 the two captures by what tells them apart: a `data-testid` or an `id`

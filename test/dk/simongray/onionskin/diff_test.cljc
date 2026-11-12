@@ -37,7 +37,7 @@
            (last changes)))
     (is (= (str "Removed on 1 element, e.g. html:1>c:3\n"
                 "Added on 1 element, e.g. html:1>d:3\n"
-                "font-size: 20px -> 18px on 3 elements, e.g. html:1\n"
+                "font-size: 20px -> 18px on 1 element and 2 inside it, e.g. html:1\n"
                 "color: red -> blue on 1 element, e.g. html:1>b:2\n"
                 "::before content: \"x\" -> \"y\" on 1 element, e.g. html:1>b:2\n"
                 "Moved or resized on 1 element, e.g. html:1>b:2 (left 20 -> 5, right 30 -> 15)\n"
@@ -76,6 +76,30 @@
              changes))
       (is (= (str "Moved in the markup on 1 element, e.g. html:1>main:2>a:1"
                   " (was html:1>nav:1>a:1)")
+             (onionskin/explain changes))))))
+
+(deftest follows-test
+  (let [changes (onionskin/diff
+                  {:nodes [(node "html:1" 0 {})
+                           (node "html:1>p:1" 0 {"color" "red" "border-top-color" "red"
+                                                 "width" "10px"})
+                           (node "html:1>p:1>a:1" 0 {"color" "red"})]}
+                  {:nodes [(node "html:1" 0 {})
+                           (node "html:1>p:1" 5 {"color" "blue" "border-top-color" "blue"
+                                                 "width" "12px"})
+                           (node "html:1>p:1>a:1" 0 {"color" "blue"})]})]
+    (testing "a change that another one explains says what it follows"
+      (is (= {["html:1>p:1" "color"]            nil
+              ["html:1>p:1" "border-top-color"] "color"
+              ["html:1>p:1" "width"]            :box
+              ["html:1>p:1>a:1" "color"]        :parent}
+             (into {} (map (juxt (juxt :path :property) :follows))
+                   (filter :property changes)))))
+    (testing "and is counted on that one's line"
+      (is (= (str "color: red -> blue on 1 element and 1 inside it, e.g. html:1>p:1,"
+                  " with 1 property that follows it\n"
+                  "Moved or resized on 1 element, e.g. html:1>p:1 (left 0 -> 5, right 10 -> 15),"
+                  " with 1 style value that follows")
              (onionskin/explain changes))))))
 
 (deftest levels-test
