@@ -92,7 +92,10 @@
                       (= "html:1>body:2>nav:1>input:2" (:path %)))
                 changes)))
     (testing "the relations of a spec's elements can be compared too"
-      (let [capture #(onionskin/capture *browser* url {:spec spec :all true :css %})]
+      ;; The spec names only these two, since where text falls depends on
+      ;; the fonts of the machine.
+      (let [spec    {"nav .logo" {:left-of "nav .search"}}
+            capture #(onionskin/capture *browser* url {:spec spec :all true :css %})]
         (is (= [{:change :relation :subject "nav .logo" :target "nav .search"
                  :lost #{:left-of :apart} :gained #{:overlaps}}]
                (onionskin/diff (capture nil)
