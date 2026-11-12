@@ -5,10 +5,12 @@
 //           matches. For each element, the capture reads the properties in
 //           styles. A hidden probe inside the element resolves each pair of
 //           a property and a CSS value in resolve.
-//   all     {root, styles, pseudo} or null: every element under root, the
-//           document by default, except those in the head. The capture
-//           reads every property but the custom ones, or only those in
-//           styles. It also reads the pseudo elements that have content.
+//   all     {root, styles, pseudo, attributes} or null: every element
+//           under root, the document by default, except those in the head.
+//           The capture reads every property but the custom ones, or only
+//           those in styles. It also reads the pseudo elements that have
+//           content, the attributes that tell elements apart, and each
+//           element's own text.
 //   css     CSS to add to the page before anything else, e.g. to try a
 //           change without editing the style sheets
 //   settle  true to turn off animations and transitions and wait for the
@@ -118,6 +120,11 @@ async function capture(options) {
   if (all) {
     const root = all.root ? document.querySelector(all.root) : document.documentElement;
     const pseudos = all.pseudo || ['::before', '::after'];
+    // These attributes and the text stay the most stable from one version
+    // of a page to the next, where classes and paths don't (Nass et al.,
+    // TOSEM 2023).
+    const identity = all.attributes ||
+      ['data-testid', 'id', 'name', 'type', 'aria-label'];
     // A computed style lists longhands only. Mazinanian and Tsantalis also
     // compared longhands to check their CSS migrations (ASE 2016).
     styleNames = all.styles ||
@@ -137,6 +144,13 @@ async function capture(options) {
           }
         }
         if (pseudo.length) node.pseudo = pseudo;
+        const attributes = identity.filter(name => el.hasAttribute(name))
+          .map(name => [name, el.getAttribute(name)]);
+        if (attributes.length) node.attributes = attributes;
+        const text = Array.from(el.childNodes)
+          .filter(child => child.nodeType === Node.TEXT_NODE)
+          .map(child => child.data).join(' ').replace(/\s+/g, ' ').trim();
+        if (text) node.text = text;
         return node;
       });
   }

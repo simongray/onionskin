@@ -4,16 +4,12 @@
 
   A full capture lists every element of the page under :nodes. Each node has
   its :path in the document, its :box, its computed :style and the styles of
-  its :pseudo elements. The diff pairs elements by path, so it suits a change
-  that leaves the markup alone."
+  its :pseudo elements. The match namespace pairs the elements of the two
+  captures, also when the markup changed between them."
   (:require [clojure.set :as set]
             [dk.simongray.onionskin.impl.geometry :as geometry]
+            [dk.simongray.onionskin.impl.match :as match]
             [dk.simongray.onionskin.impl.relation :as relation]))
-
-(defn- by-path
-  "The nodes of `capture` by their path."
-  [capture]
-  (into {} (map (juxt :path identity)) (:nodes capture)))
 
 (defn- style-changes
   "The properties that differ between the styles `a` and `b` of the element
@@ -34,11 +30,12 @@
         pseudo (assoc :pseudo pseudo)))))
 
 (defn- node-changes
-  "The changes from `a` to `b`, the same element in two captures.
+  "The changes from `a` to `b`, the same element in two captures, under the
+  path of `b`.
 
   It compares the `levels` asked for, with box edges compared within
   `tolerance`."
-  [levels tolerance {:keys [path] :as a} b]
+  [levels tolerance a {:keys [path] :as b}]
   (concat
     (when (:styles levels)
       (concat (style-changes path nil (:style a) (:style b))
@@ -50,6 +47,20 @@
     (when (and (:boxes levels)
                (not (geometry/same-box? tolerance (:box a) (:box b))))
       [{:change :box :path path :before (:box a) :after (:box b)}])))
+
+(defn- pair-changes
+  "The changes between the two nodes of `pair`, an element that both
+  captures have, for the `levels` asked for and within `tolerance`.
+
+  When the element has another path than before, each change also has its
+  :old-path and the rule that it was :paired-by."
+  [levels tolerance {a :before b :after :keys [rule moved?] :as pair}]
+  (let [origin (when (not= (:path a) (:path b))
+                 {:old-path (:path a) :paired-by rule})]
+    (map #(merge % origin)
+         (concat (when moved?
+                   [{:change :moved :path (:path b)}])
+                 (node-changes levels tolerance a b)))))
 
 ;; Comparing which relations hold, rather than coordinates, follows X-PERT
 ;; (Roy Choudhary et al., ICSE 2013) and ReDeCheck (Walsh et al., STVR 2020).
@@ -86,21 +97,20 @@
   "The differences between the captures `before` and `after`, with the
   `opts` of diff in the root namespace."
   [before after {:keys [levels tolerance]
+                 ks    :keys
                  :or   {levels    #{:styles :boxes}
-                        tolerance geometry/default-tolerance}
+                        tolerance geometry/default-tolerance
+                        ks        ["data-testid" "id"]}
                  :as   opts}]
-  (let [a (by-path before)
-        b (by-path after)]
+  (let [pairs (match/pairs (:nodes before) (:nodes after) ks)
+        kept  (into #{} (map (comp :path :before)) pairs)
+        found (into #{} (map (comp :path :after)) pairs)]
     (vec
       (concat
-        (for [{:keys [path]} (:nodes before) :when (not (contains? b path))]
+        (for [{:keys [path]} (:nodes before) :when (not (contains? kept path))]
           {:change :removed :path path})
-        (for [{:keys [path]} (:nodes after) :when (not (contains? a path))]
+        (for [{:keys [path]} (:nodes after) :when (not (contains? found path))]
           {:change :added :path path})
-        (for [node (:nodes before)
-              :let [other (get b (:path node))]
-              :when other
-              change (node-changes levels tolerance node other)]
-          change)
+        (mapcat #(pair-changes levels tolerance %) pairs)
         (when (:relations levels)
           (relation-changes tolerance before after))))))

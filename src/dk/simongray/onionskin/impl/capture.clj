@@ -42,7 +42,9 @@
              :box   (:box n)
              :style (style (:style n))}
       (:pseudo n) (assoc :pseudo (into {} (for [[pseudo indexes] (:pseudo n)]
-                                            [pseudo (style indexes)]))))))
+                                            [pseudo (style indexes)])))
+      (:attributes n) (assoc :attributes (into {} (:attributes n)))
+      (:text n) (assoc :text (:text n)))))
 
 (defn normalize
   "The `raw` result of capture.js, turned into the capture that check and

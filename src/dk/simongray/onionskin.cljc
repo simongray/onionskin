@@ -94,13 +94,16 @@
 
      Without a :spec, the capture has what diff needs: every element under
      :nodes, with its :path, its :box, its computed :style and the styles
-     of its :pseudo elements. The options are:
+     of its :pseudo elements. Each element also has its own :text and the
+     :attributes that name it, which pair the elements of two captures when
+     the markup changed. The options are:
 
          :spec    the spec whose elements and values to read
          :all     true to also read every element, or a map of :root (a
-                  selector), :styles (the properties to read) and :pseudo
-                  (the pseudo elements to read). It's true by default when
-                  there's no :spec.
+                  selector), :styles (the properties to read), :pseudo (the
+                  pseudo elements to read) and :attributes (the attributes
+                  to read: data-testid, id, name, type and aria-label by
+                  default). It's true by default when there's no :spec.
          :width   the viewport width in CSS pixels (default 1280)
          :height  the viewport height in CSS pixels (default 800)
          :scale   the device pixel ratio (default 1)
@@ -152,26 +155,41 @@
       (onionskin/diff (onionskin/capture browser url)
                       (onionskin/capture browser url {:css \"nav { gap: 0 }\"}))
 
+  While the markup is the same, the elements of the two captures pair by
+  their path. Where it changed, they pair by what tells them apart, from
+  the most trusted sign to the least: a key attribute with a value that no
+  other element has, identical contents, most of the same contents, the
+  same shape or tag among the children of a pair, and last the same text or
+  box. An element with no clear partner counts as removed or added, so a
+  new wrapper is one added element and what's inside it still pairs.
+
   Removed and added elements come first, then the changes of each element
   in document order, then the relations. Each difference has one of these
   under :change:
 
       :removed, :added  the element at :path, which only one of the
                         captures has
+      :moved            the element at :path, which was in another place of
+                        the document, and not just under a new wrapper
       :style            a :property of the element at :path, or of its
                         :pseudo element, with the value :before and :after
-      :box              the element at :path, which moved or changed size,
-                        with its box :before and :after
+      :box              the element at :path, which moved on the page or
+                        changed size, with its box :before and :after
       :relation         a :subject and a :target among the selectors of a
                         spec, with the relations that they :lost and
                         :gained
 
-  The options are:
+  A :path is the element's path in `after`, or in `before` for a removed
+  element. Where the two differ, the difference also has the :old-path and
+  the sign that the element was :paired-by: :key, :subtree, :container,
+  :shape, :tag, :text or :box. The options are:
 
       :levels     what to compare, a set of :styles, :boxes and :relations
                   (default #{:styles :boxes})
       :tolerance  the CSS pixels within which edges count as equal
-                  (default 0.5)"
+                  (default 0.5)
+      :keys       the attributes that name an element, the most trusted
+                  first (default [\"data-testid\" \"id\"])"
   ([before after]
    (diff/diff before after {}))
   ([before after opts]

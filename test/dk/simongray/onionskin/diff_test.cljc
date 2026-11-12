@@ -1,5 +1,5 @@
 (ns dk.simongray.onionskin.diff-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [dk.simongray.onionskin :as onionskin]))
 
 (defn- node
@@ -43,6 +43,40 @@
                 "Moved or resized on 1 element, e.g. html:1>b:2 (left 20 -> 5, right 30 -> 15)\n"
                 "a to b: no longer apart, left-of; now overlaps")
            (onionskin/explain changes)))))
+
+(deftest markup-test
+  (testing "a change shows on an element that got a wrapper"
+    (let [changes (onionskin/diff
+                    {:nodes [(node "html:1" 0 {})
+                             (node "html:1>a:1" 0 {"color" "red"} :text "x")
+                             (node "html:1>b:2" 20 {} :text "y")]}
+                    {:nodes [(node "html:1" 0 {})
+                             (node "html:1>div:1" 0 {})
+                             (node "html:1>div:1>a:1" 0 {"color" "blue"} :text "x")
+                             (node "html:1>b:2" 20 {} :text "y")]})]
+      (is (= [{:change :added :path "html:1>div:1"}
+              {:change :style :path "html:1>div:1>a:1" :old-path "html:1>a:1"
+               :paired-by :subtree :property "color" :before "red" :after "blue"}]
+             changes))
+      (is (= (str "Added on 1 element, e.g. html:1>div:1\n"
+                  "color: red -> blue on 1 element, e.g. html:1>div:1>a:1")
+             (onionskin/explain changes)))))
+  (testing "an element in another place has moved"
+    (let [changes (onionskin/diff
+                    {:nodes [(node "html:1" 0 {})
+                             (node "html:1>nav:1" 0 {})
+                             (node "html:1>nav:1>a:1" 0 {} :text "x")
+                             (node "html:1>main:2" 20 {})]}
+                    {:nodes [(node "html:1" 0 {})
+                             (node "html:1>nav:1" 0 {})
+                             (node "html:1>main:2" 20 {})
+                             (node "html:1>main:2>a:1" 0 {} :text "x")]})]
+      (is (= [{:change :moved :path "html:1>main:2>a:1" :old-path "html:1>nav:1>a:1"
+               :paired-by :subtree}]
+             changes))
+      (is (= (str "Moved in the markup on 1 element, e.g. html:1>main:2>a:1"
+                  " (was html:1>nav:1>a:1)")
+             (onionskin/explain changes))))))
 
 (deftest levels-test
   (is (= #{:removed :added :box}

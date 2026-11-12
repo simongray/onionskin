@@ -128,11 +128,15 @@ try a change without editing the style sheets:
 ;;     (left 116 -> 120)"
 ```
 
-A diff pairs elements by their place in the document, so it works best for
-changes to the CSS that leave the markup alone. By default it compares
-styles and boxes. To also compare which named relations hold between the
-elements of a spec, capture with both the `:spec` and `:all`, then add
-`:relations` to the `:levels` of the diff.
+A diff also works when the markup changed. It then pairs the elements of
+the two captures by what tells them apart: a `data-testid` or an `id`
+first, then their contents. A new wrapper shows up as one added element,
+and a change to an element inside it is still reported. An element with no
+clear partner counts as removed or added.
+
+By default a diff compares styles and boxes. To also compare which named
+relations hold between the elements of a spec, capture with both the
+`:spec` and `:all`, then add `:relations` to the `:levels` of the diff.
 
 
 Browsers

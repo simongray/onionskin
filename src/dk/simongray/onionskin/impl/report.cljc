@@ -116,12 +116,15 @@
   Changes of a style property from the same old value to the same new value
   share a line."
   [differences]
-  (let [{:keys [added removed style box relation]} (group-by :change differences)]
+  (let [{:keys [added removed moved style box relation]} (group-by :change differences)]
     (str/join
       "\n"
       (concat
         (when removed [(str "Removed " (example-text removed))])
         (when added [(str "Added " (example-text added))])
+        (when moved
+          [(str "Moved in the markup " (example-text moved)
+                " (was " (:old-path (first moved)) ")")])
         (for [[[property pseudo before after] changes]
               (sort-by (comp - count val)
                        (group-by (juxt :property :pseudo :before :after) style))]

@@ -22,6 +22,16 @@
 (def url
   (str (.toURI (io/file "test/fixtures/page.html"))))
 
+(def wrapped-url
+  "The fixture with a wrapper around the logo and another colour for links."
+  (let [file (java.io.File/createTempFile "onionskin" ".html")]
+    (.deleteOnExit file)
+    (spit file (-> (slurp "test/fixtures/page.html")
+                   (str/replace "<div class=\"logo\"></div>"
+                                "<div class=\"brand\"><div class=\"logo\"></div></div>")
+                   (str/replace "--color-link: #0066BB" "--color-link: #004488")))
+    (str (.toURI file))))
+
 (def spec
   {"nav .logo"    {:left-of     {:target "nav .search" :by 8}
                    :top-aligned "nav .search"
@@ -101,3 +111,23 @@
                (onionskin/diff (capture nil)
                                (capture "nav .search { margin-left: -20px; }")
                                {:levels #{:relations}})))))))
+
+(deftest markup-test
+  (let [before  (onionskin/capture *browser* url)
+        changes (onionskin/diff before (onionskin/capture *browser* wrapped-url))]
+    (testing "a capture has what tells elements apart"
+      (is (= {:text "link"}
+             (some #(when (= "html:1>body:2>p:4>a:1" (:path %))
+                      (select-keys % [:text :attributes]))
+                   (:nodes before))))
+      (is (= {"aria-label" "Main"} (some :attributes (:nodes before)))))
+    (testing "a new wrapper is the only element that was added or removed"
+      (is (= [{:change :added :path "html:1>body:2>nav:1>div:1"}]
+             (filter (comp #{:added :removed :moved} :change) changes))))
+    (testing "a change inside and outside the wrapper still shows"
+      (is (some #(= {:change :style :path "html:1>body:2>p:4>a:1"
+                     :property "color" :before "rgb(0, 102, 187)" :after "rgb(0, 68, 136)"}
+                    %)
+                changes))
+      (is (every? #(= "html:1>body:2>nav:1>div:1" (:old-path %))
+                  (filter #(= "html:1>body:2>nav:1>div:1>div:1" (:path %)) changes))))))
